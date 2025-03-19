@@ -12,6 +12,9 @@ jobs:
   build:
     name: Publish release to PyPI
     runs-on: ubuntu-latest
+    permissions:                # Job-level permissions configuration starts here
+      contents: write           # 'write' access to repository contents
+      pull-requests: write  
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,25 +45,6 @@ jobs:
           sed -i "s/version=''/version='${{ github.event.release.tag_name }}'/" setup.py
           git commit -a -m "Add changes"
           
-          # # Ensure we're on the correct branch
-          # git branch  # List current branch to ensure we are on the right one
-          # git fetch origin  # Fetch the latest updates from origin
-          # git checkout test-release-pypi-branch  # Ensure we're on test-release-pypi-branch
-          # git branch  # List branches again to ensure we are on the correct one
-      
-          # # Update the version in setup.py
-          # sed -i "s/version=''/version='${{ github.event.release.tag_name }}'/" setup.py
-          
-          # # # Add and commit the changes
-          # git status
-          # git add setup.py
-          # git status  # Confirm the file changes
-          # git commit -m "Update version to ${{ github.event.release.tag_name }}"
-          # git status  # Confirm commit
-      
-          # # Push the changes to the remote test-release-pypi-branch
-          # git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/Ayush900/nzpy.git test-release-pypi-branch
-
       - name: Push changes
         uses: ad-m/github-push-action@master
         with:
