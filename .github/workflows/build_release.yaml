@@ -26,6 +26,25 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install build twine --user
           pip install setuptools wheel
+
+      - name: Update version in setup.py
+        run: |
+          sed -i "s/version='.*'/version='${{ github.event.release.tag_name }}'/" setup.py
+          
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add setup.py
+          git commit -m "Update version to ${{ github.event.release.tag_name }}"
+          git push
+
+      - name: Verify update
+        run: |
+          # Verify that the version is updated in setup.py
+          grep 'version=' setup.py
+          ls dist/
+      
       - name: Build package
         run: |
           python3 -m build
