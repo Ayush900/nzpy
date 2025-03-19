@@ -31,17 +31,17 @@ jobs:
         run: |
           sed -i "s/version='.*'/version='${{ github.event.release.tag_name }}'/" setup.py
           
-      - name: Commit and push changes
-        run: |
-          git fetch origin
-          git checkout test-release-pypi-branch
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          git add setup.py
-          git status
-          git commit -m "Update version to ${{ github.event.release.tag_name }}"
-          git status
-          git push origin test-release-pypi-branch
+      # - name: Commit and push changes
+      #   run: |
+      #     git fetch origin
+      #     git checkout test-release-pypi-branch
+      #     git config --global user.name "GitHub Actions"
+      #     git config --global user.email "actions@github.com"
+      #     git add setup.py
+      #     git status
+      #     git commit -m "Update version to ${{ github.event.release.tag_name }}"
+      #     git status
+      #     git push origin test-release-pypi-branch
 
       - name: Verify update
         run: |
