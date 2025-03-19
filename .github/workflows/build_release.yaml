@@ -45,7 +45,7 @@ jobs:
       
           # Update the version in setup.py
           sed -i "s/version=''/version='${{ github.event.release.tag_name }}'/" setup.py
-      
+          
           # # Add and commit the changes
           git status
           git add setup.py
@@ -54,7 +54,7 @@ jobs:
           git status  # Confirm commit
       
           # Push the changes to the remote test-release-pypi-branch
-          git push origin test-release-pypi-branch
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/Ayush900/nzpy.git test-release-pypi-branch
 
 
       - name: Verify update
