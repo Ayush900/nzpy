@@ -50,8 +50,8 @@ jobs:
           git status
           git add setup.py
           git status  # Confirm the file changes
-          # git commit -m "Update version to ${{ github.event.release.tag_name }}"
-          # git status  # Confirm commit
+          git commit -m "Update version to ${{ github.event.release.tag_name }}"
+          git status  # Confirm commit
       
           # # Push the changes to the remote test-release-pypi-branch
           # git push origin test-release-pypi-branch
