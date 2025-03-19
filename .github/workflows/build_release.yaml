@@ -22,6 +22,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          echo "Using release tag: ${{ github.event.release.tag_name }}"
           python3 -m pip install --upgrade pip
           python3 -m pip install build twine --user
           pip install setuptools wheel
