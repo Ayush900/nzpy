@@ -47,11 +47,11 @@ jobs:
         run: |
           # Verify that the version is updated in setup.py
           grep 'version=' setup.py
-          ls /dist
       
       - name: Build package
         run: |
           python3 -m build
+          ls dist/
       - name: Store the distribution packages
         uses: actions/upload-artifact@v4
         with:
