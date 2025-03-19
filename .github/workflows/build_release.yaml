@@ -14,6 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
 
       - name: Set up python
         uses: actions/setup-python@v4
@@ -34,28 +37,34 @@ jobs:
       - name: Commit and push changes
         run: |
           # Configure Git user
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          
-          # Ensure we're on the correct branch
-          git branch  # List current branch to ensure we are on the right one
-          git fetch origin  # Fetch the latest updates from origin
-          git checkout test-release-pypi-branch  # Ensure we're on test-release-pypi-branch
-          git branch  # List branches again to ensure we are on the correct one
-      
-          # Update the version in setup.py
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
           sed -i "s/version=''/version='${{ github.event.release.tag_name }}'/" setup.py
+          git commit -a -m "Add changes"
           
-          # # Add and commit the changes
-          git status
-          git add setup.py
-          git status  # Confirm the file changes
-          git commit -m "Update version to ${{ github.event.release.tag_name }}"
-          git status  # Confirm commit
+          # # Ensure we're on the correct branch
+          # git branch  # List current branch to ensure we are on the right one
+          # git fetch origin  # Fetch the latest updates from origin
+          # git checkout test-release-pypi-branch  # Ensure we're on test-release-pypi-branch
+          # git branch  # List branches again to ensure we are on the correct one
       
-          # Push the changes to the remote test-release-pypi-branch
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/Ayush900/nzpy.git test-release-pypi-branch
+          # # Update the version in setup.py
+          # sed -i "s/version=''/version='${{ github.event.release.tag_name }}'/" setup.py
+          
+          # # # Add and commit the changes
+          # git status
+          # git add setup.py
+          # git status  # Confirm the file changes
+          # git commit -m "Update version to ${{ github.event.release.tag_name }}"
+          # git status  # Confirm commit
+      
+          # # Push the changes to the remote test-release-pypi-branch
+          # git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/Ayush900/nzpy.git test-release-pypi-branch
 
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          force_with_lease: true
 
       - name: Verify update
         run: |
