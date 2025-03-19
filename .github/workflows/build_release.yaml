@@ -46,7 +46,7 @@ jobs:
           git commit -a -m "Add changes"
           
       - name: Push changes
-        uses: ad-m/github-push-action@master
+        uses: ad-m/github-push-action@test-release-pypi-branch
         with:
           force_with_lease: true
 
