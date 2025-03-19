@@ -47,7 +47,7 @@ jobs:
         run: |
           # Verify that the version is updated in setup.py
           grep 'version=' setup.py
-          ls dist/
+          ls /dist
       
       - name: Build package
         run: |
