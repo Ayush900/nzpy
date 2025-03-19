@@ -43,7 +43,7 @@ jobs:
           git status
           git commit -m "Update version to ${{ github.event.release.tag_name }}"
           git status
-          git push origin test-release-pypi-branch
+          git push
 
       - name: Verify update
         run: |
