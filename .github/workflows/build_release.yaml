@@ -27,23 +27,34 @@ jobs:
           python3 -m pip install build twine --user
           pip install setuptools wheel
 
-      - name: Update version in setup.py
-        run: |
-          sed -i "s/version=''/version='${{ github.event.release.tag_name }}'/" setup.py
+      # - name: Update version in setup.py
+      #   run: |
+      #     sed -i "s/version=''/version='${{ github.event.release.tag_name }}'/" setup.py
           
       - name: Commit and push changes
         run: |
+          # Configure Git user
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git branch
-          git fetch origin
-          git checkout test-release-pypi-branch
-          git branch
+          
+          # Ensure we're on the correct branch
+          git branch  # List current branch to ensure we are on the right one
+          git fetch origin  # Fetch the latest updates from origin
+          git checkout test-release-pypi-branch  # Ensure we're on test-release-pypi-branch
+          git branch  # List branches again to ensure we are on the correct one
+      
+          # Update the version in setup.py
+          sed -i "s/version=''/version='${{ github.event.release.tag_name }}'/" setup.py
+      
+          # Add and commit the changes
           git add setup.py
-          git status
+          git status  # Confirm the file changes
           git commit -m "Update version to ${{ github.event.release.tag_name }}"
-          git status
-          git push
+          git status  # Confirm commit
+      
+          # Push the changes to the remote test-release-pypi-branch
+          git push origin test-release-pypi-branch
+
 
       - name: Verify update
         run: |
