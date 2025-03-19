@@ -33,9 +33,10 @@ jobs:
           
       - name: Commit and push changes
         run: |
+          git fetch origin
+          git checkout test-release-pypi-branch
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git checkout test-release-pypi-branch
           git add setup.py
           git commit -m "Update version to ${{ github.event.release.tag_name }}"
           git push
