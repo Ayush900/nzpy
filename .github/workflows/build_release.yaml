@@ -47,8 +47,9 @@ jobs:
           sed -i "s/version=''/version='${{ github.event.release.tag_name }}'/" setup.py
       
           # # Add and commit the changes
-          # git add setup.py
-          # git status  # Confirm the file changes
+          git status
+          git add setup.py
+          git status  # Confirm the file changes
           # git commit -m "Update version to ${{ github.event.release.tag_name }}"
           # git status  # Confirm commit
       
