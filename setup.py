@@ -7,7 +7,7 @@ readme = os.path.join(os.path.dirname(__file__), "README.md")
 
 setup(
     name="nzpy",
-    version=1.16,
+    version=,
     description="IBM Netezza python driver",
     long_description=open(readme).read(),
     long_description_content_type='text/markdown',
