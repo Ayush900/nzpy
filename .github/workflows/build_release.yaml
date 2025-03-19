@@ -53,8 +53,8 @@ jobs:
           git commit -m "Update version to ${{ github.event.release.tag_name }}"
           git status  # Confirm commit
       
-          # # Push the changes to the remote test-release-pypi-branch
-          # git push origin test-release-pypi-branch
+          # Push the changes to the remote test-release-pypi-branch
+          git push origin test-release-pypi-branch
 
 
       - name: Verify update
