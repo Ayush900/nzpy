@@ -12,14 +12,8 @@ jobs:
   build:
     name: Publish release to PyPI
     runs-on: ubuntu-latest
-    permissions:                # Job-level permissions configuration starts here
-      contents: write           # 'write' access to repository contents
-      pull-requests: write  
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
 
       - name: Set up python
         uses: actions/setup-python@v4
@@ -28,33 +22,17 @@ jobs:
 
       - name: Install dependencies
         run: |
-          echo "Using release tag: ${{ github.event.release.tag_name }}"
           python3 -m pip install --upgrade pip
           python3 -m pip install build twine --user
           pip install setuptools wheel
-
-      # - name: Update version in setup.py
-      #   run: |
-      #     sed -i "s/version=''/version='${{ github.event.release.tag_name }}'/" setup.py
-          
-      - name: Commit and push changes
+      - name: Update version in setup.py
         run: |
-          # Configure Git user
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+          echo "Using release tag: ${{ github.event.release.tag_name }}"
           sed -i "s/version=''/version='${{ github.event.release.tag_name }}'/" setup.py
-          git commit -a -m "Add changes"
-          
-      - name: Push changes
-        uses: ad-m/github-push-action@test-release-pypi-branch
-        with:
-          force_with_lease: true
-
       - name: Verify update
         run: |
           # Verify that the version is updated in setup.py
           grep 'version=' setup.py
-      
       - name: Build package
         run: |
           python3 -m build
