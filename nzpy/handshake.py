@@ -2,7 +2,7 @@ import base64
 import ssl
 from getpass import getuser
 from hashlib import md5
-from hashlib import sha256
+from argon2 import PasswordHasher
 from os import getpid, path
 from platform import system
 from socket import gethostname
@@ -561,10 +561,9 @@ class Handshake():
                     "authentication, but no password "
                     "was provided"
                     )
-            sha256encoded = sha256(salt+password)
-            sha256pwd = base64.standard_b64encode(sha256encoded.digest())
-            pwd = sha256pwd.rstrip(b"=")
-            self.log.debug("sha256 encrypted password is =%s", pwd)
+            ph = PasswordHasher()
+            pwd = ph.hash(salt + password)
+            self.log.debug("argon2 encrypted password is =%s", pwd)
 
             # Int32 - Message length including
             # String - The password.  Password may be encrypted.
