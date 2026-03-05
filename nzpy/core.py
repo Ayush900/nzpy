@@ -2408,39 +2408,48 @@ class Connection():
                       blockSize, hostversion)
 
         try:
-            filehandle = open(filename, 'r', encoding='utf-8')
+            filehandle = open(filename, 'rb')
             self.log.info("Successfully opened External"
                           " file to read:%s", filename)
             while True:
                 data = filehandle.read(blockSize)
                 if not data:
                     break
-                if blockSize < len(data.encode('utf8')):
-                    diff = len(data.encode('utf8')) - blockSize
+                data_len = len(data)
+                if blockSize < data_len:
+                    diff = data_len - blockSize
                     val = bytearray(i_pack(EXTAB_SOCK_DATA) +
                                     i_pack(blockSize))
-                    val.extend(data.encode('utf8'))
-                    self._write(val[:blockSize + 8])
+                    val.extend(data[:blockSize])
+                    self._write(val)
                     self._flush()
                     val = bytearray(i_pack(EXTAB_SOCK_DATA) +
-                                    i_pack(diff) +
-                                    val[blockSize + 8:])
+                                    i_pack(diff))
+                    val.extend(data[blockSize:])
                     self._write(val)
                     self._flush()
                 else:
                     val = bytearray(i_pack(EXTAB_SOCK_DATA) +
-                                    i_pack(len(data.encode('utf8'))))
-                    val.extend(data.encode('utf8'))
+                                    i_pack(data_len))
+                    val.extend(data)
                     self._write(val)
                     self._flush()
-                self.log.debug("No. of bytes sent to BE:%s", len(data))
+                self.log.debug("No. of bytes sent to BE:%s", data_len)
+            filehandle.close()
             val = bytearray(i_pack(EXTAB_SOCK_DONE))
             self._write(val)
             self._flush()
             self.log.info("sent EXTAB_SOCK_DONE to reader")
 
-        except Exception:
-            self.log.warning("Error opening file")
+        except Exception as e:
+            self.log.error("Error opening file '%s': %s", filename, str(e))
+            try:
+                val = bytearray(i_pack(EXTAB_SOCK_ERROR))
+                self._write(val)
+                self._flush()
+            except Exception:
+                pass
+            raise
 
     ##################################################################
     #  Function: getFileFromBE - This Routine opens a file in
@@ -2468,33 +2477,41 @@ class Connection():
 
         if logType == 1:
             fullpath = fullpath + ".nzlog"
-            fh = open(fullpath, "w+")
+            fh = open(fullpath, "wb+")
         elif logType == 2:
             fullpath = fullpath + ".nzbad"
-            fh = open(fullpath, "w+")
+            fh = open(fullpath, "wb+")
         elif logType == 3:
             fullpath = fullpath + ".nzstats"
-            fh = open(fullpath, "w+")
+            fh = open(fullpath, "wb+")
+        else:
+            fh = open(fullpath, "wb+")
 
-        while (1):
+        try:
+            while (1):
 
-            numBytes = i_unpack(self._read(4))[0]
+                numBytes = i_unpack(self._read(4))[0]
 
-            if numBytes == 0:  # zeros means EOF, no more data
-                break
+                if numBytes == 0:
+                    break
 
-            dataBuffer = str(self._read(numBytes), self._client_encoding)
+                dataBuffer = self._read(numBytes)
 
-            if status:
-                try:
-                    fh.write(dataBuffer)
-                    self.log.info("Successfully written data "
-                                  "into file: %s", fullpath)
-                except Exception:
-                    self.log.warning("Error in writing data to file")
-                    status = False
+                if status:
+                    try:
+                        print("The databuffer is : %s", dataBuffer)
+                        fh.write(dataBuffer)
+                        print("Successfully written data")
+                        self.log.info("Successfully written data "
+                                      "into file: %s", fullpath)
+                    except Exception as e:
+                        self.log.error("Error in writing data to file '%s': %s",
+                                      fullpath, str(e))
+                        status = False
 
-        fh.close()
+        finally:
+            fh.close()
+
         return status
 
     def _send_message(self, code, data):
