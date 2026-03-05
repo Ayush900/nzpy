@@ -2499,9 +2499,7 @@ class Connection():
 
                 if status:
                     try:
-                        print("The databuffer is : %s", dataBuffer)
                         fh.write(dataBuffer)
-                        print("Successfully written data")
                         self.log.info("Successfully written data "
                                       "into file: %s", fullpath)
                     except Exception as e:
