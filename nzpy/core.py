@@ -1917,11 +1917,11 @@ class Connection():
                 try:
                     is_fifo = stat.S_ISFIFO(os.stat(fname).st_mode) if os.path.exists(fname) else False
                     if is_fifo:
-                        # For FIFOs, use 'w' mode which works better with named pipes
-                        fh = open(fname, "w")
+                        # For FIFOs, use 'wb' mode for binary writing
+                        fh = open(fname, "wb")
                     else:
-                        # For regular files we use w+
-                        fh = open(fname, "w+")
+                        # For regular files we use wb+
+                        fh = open(fname, "wb+")
                     self.log.debug("Successfully opened file: %s", fname)
                     # file open successfully, send status back to datawriter
                     buf = bytearray(i_pack(0))
@@ -2326,57 +2326,54 @@ class Connection():
 
         self._read(4)
 
-        while (1):
+        try:
+            while True:
 
-            #  Get EXTAB_SOCK Status
-            try:
-                status = i_unpack(self._read(4))[0]
-            except Exception:
-                self.log.warning("Error while retrieving status, "
-                                 "closing unload file")
-            finally:
-                fh.close()
-
-            if status == EXTAB_SOCK_DATA:
-                # get number of bytes in block
-                numBytes = i_unpack(self._read(4))[0]
+                #  Get EXTAB_SOCK Status
                 try:
-                    blockBuffer = str(self._read(numBytes),
-                                      self._client_encoding)
-                    is_fifo = stat.S_ISFIFO(os.stat(fname).st_mode) if os.path.exists(fname) else False
-                    if is_fifo:
-                        fh = open(fname, "w")
-                    else:
-                        fh = open(fname, "a+")
-                    fh.write(blockBuffer)
-                    self.log.info("Successfully written data into file")
-                except Exception:
-                    self.log.warning("Error in writing data to file")
-                continue
+                    status = i_unpack(self._read(4))[0]
+                except Exception as e:
+                    self.log.warning("Error while retrieving status: %s", str(e))
+                    break
 
-            if status == EXTAB_SOCK_DONE:
+                if status == EXTAB_SOCK_DATA:
+                    # get number of bytes in block
+                    numBytes = i_unpack(self._read(4))[0]
+                    try:
+                        blockBuffer = self._read(numBytes)
+                        fh.write(blockBuffer)
+                        self.log.info("Successfully written %d bytes to file", numBytes)
+                    except Exception as e:
+                        self.log.error("Error writing data to file '%s': %s", fname, str(e))
+                        raise
+                    continue
+
+                elif status == EXTAB_SOCK_DONE:
+                    self.log.info("unload - done receiving data")
+                    break
+
+                elif status == EXTAB_SOCK_ERROR:
+
+                    len_msg = h_unpack(self._read(2))[0]
+                    errorMsg = str(self._read(len_msg), self._client_encoding)
+
+                    len_obj = h_unpack(self._read(2))[0]
+                    errorObject = str(self._read(len_obj), self._client_encoding)
+
+                    self.log.warning("unload - ErrorMsg: %s", errorMsg)
+                    self.log.warning("unload - ErrorObj: %s", errorObject)
+                    break
+
+                else:
+                    self.log.warning("unload - unexpected status: %d", status)
+                    break
+
+        finally:
+            try:
                 fh.close()
-                self.log.info("unload - done receiving data")
-                break
-
-            if status == EXTAB_SOCK_ERROR:
-
-                len = h_unpack(self._read(2))[0]
-                errorMsg = str(self._read(len), self._client_encoding)
-
-                len = h_unpack(self._read(2))[0]
-                errorObject = str(self._read(len), self._client_encoding)
-
-                self.log.warning("unload - ErrorMsg: %s", errorMsg)
-                self.log.warning("unload - ErrorObj: %s", errorObject)
-
-                fh.close()
-                self.log.debug("unload - done receiving data")
-                return
-
-            else:
-                fh.close()
-                return
+                self.log.debug("Closed export file: %s", fname)
+            except Exception:
+                pass
 
         return
 
