@@ -1917,10 +1917,8 @@ class Connection():
                 try:
                     is_fifo = stat.S_ISFIFO(os.stat(fname).st_mode) if os.path.exists(fname) else False
                     if is_fifo:
-                        # For FIFOs, use 'wb' mode for binary writing
                         fh = open(fname, "wb")
                     else:
-                        # For regular files we use wb+
                         fh = open(fname, "wb+")
                     self.log.debug("Successfully opened file: %s", fname)
                     # file open successfully, send status back to datawriter
