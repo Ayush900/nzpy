@@ -1251,6 +1251,13 @@ class Connection():
         def unknown_out(v):
             return str(v).encode(self._client_encoding)
 
+        # NOTE: NUMERIC[] (OID 1231) is NOT supported by IBM Netezza
+        # Netezza returns error: "parser_typecast_expression: error reading type '_NUMERIC'"
+        # The array_in() function and OID 1231 mapping have been intentionally removed
+        # as they are PostgreSQL-only features. All Netezza array types use binary
+        # format with array_recv() instead: BOOL[], INT2[], INT4[], INT8[], FLOAT4[],
+        # FLOAT8[], TEXT[], cstring[]
+
         def array_recv(data, idx, length):
             final_idx = idx + length
             dim, hasnull, typeoid = iii_unpack(data, idx)
@@ -1290,7 +1297,9 @@ class Connection():
             try:
                 return [int(x) for x in text.split()]
             except ValueError as e:
-                raise ValueError(f"Invalid integer vector format: {text}") from e
+                # Truncate preview to avoid exposing full attacker-controlled payload in logs
+                preview = text[:200] + ("..." if len(text) > 200 else "")
+                raise ValueError(f"Invalid integer vector format: {preview!r}") from e
 
         def text_recv(data, offset, length):
             return str(data[offset: offset + length], self._client_encoding)
