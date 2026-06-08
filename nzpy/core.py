@@ -1,3 +1,4 @@
+import ast
 import os
 import stat
 import datetime
@@ -1255,18 +1256,24 @@ class Connection():
         glbls = {'Decimal': Decimal}
 
         def array_in(data, idx, length):
-            arr = []
-            prev_c = None
-            for c in data[idx:idx + length].decode(self._client_encoding).\
-                    translate(trans_tab).replace('NULL', 'None'):
-                if c not in ('[', ']', ',', 'N') and prev_c in ('[', ','):
-                    arr.extend("Decimal('")
-                elif c in (']', ',') and prev_c not in ('[', ']', ',', 'e'):
-                    arr.extend("')")
+            text = data[idx:idx + length].decode(self._client_encoding)
+            # Convert PostgreSQL array syntax {a,b,c} to Python list syntax [a,b,c]
+            text = text.translate(trans_tab).replace('NULL', 'None')
+            try:
+                result = ast.literal_eval(text)
+            except (ValueError, SyntaxError) as e:
+                raise ValueError(f"Invalid array format: {text}") from e
 
-                arr.append(c)
-                prev_c = c
-            return eval(''.join(arr), glbls)
+            def convert_to_decimal(obj):
+                if isinstance(obj, list):
+                    return [convert_to_decimal(item) for item in obj]
+                elif isinstance(obj, (int, float)):
+                    return Decimal(str(obj))
+                elif obj is None:
+                    return None
+                return obj
+
+            return convert_to_decimal(result)
 
         def array_recv(data, idx, length):
             final_idx = idx + length
@@ -1301,8 +1308,13 @@ class Connection():
             return values
 
         def vector_in(data, idx, length):
-            return eval('[' + data[idx:idx + length].decode(
-                self._client_encoding).replace(' ', ',') + ']')
+            text = data[idx:idx + length].decode(self._client_encoding).strip()
+            if not text:
+                return []xw
+            try:
+                return [int(x) for x in text.split()]
+            except ValueError as e:
+                raise ValueError(f"Invalid integer vector format: {text}") from e
 
         def text_recv(data, offset, length):
             return str(data[offset: offset + length], self._client_encoding)
