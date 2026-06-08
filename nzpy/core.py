@@ -1,4 +1,3 @@
-import ast
 import os
 import stat
 import datetime
@@ -1252,29 +1251,6 @@ class Connection():
         def unknown_out(v):
             return str(v).encode(self._client_encoding)
 
-        trans_tab = dict(zip(map(ord, '{}'), '[]'))
-        glbls = {'Decimal': Decimal}
-
-        def array_in(data, idx, length):
-            text = data[idx:idx + length].decode(self._client_encoding)
-            # Convert PostgreSQL array syntax {a,b,c} to Python list syntax [a,b,c]
-            text = text.translate(trans_tab).replace('NULL', 'None')
-            try:
-                result = ast.literal_eval(text)
-            except (ValueError, SyntaxError) as e:
-                raise ValueError(f"Invalid array format: {text}") from e
-
-            def convert_to_decimal(obj):
-                if isinstance(obj, list):
-                    return [convert_to_decimal(item) for item in obj]
-                elif isinstance(obj, (int, float)):
-                    return Decimal(str(obj))
-                elif obj is None:
-                    return None
-                return obj
-
-            return convert_to_decimal(result)
-
         def array_recv(data, idx, length):
             final_idx = idx + length
             dim, hasnull, typeoid = iii_unpack(data, idx)
@@ -1310,7 +1286,7 @@ class Connection():
         def vector_in(data, idx, length):
             text = data[idx:idx + length].decode(self._client_encoding).strip()
             if not text:
-                return []xw
+                return []
             try:
                 return [int(x) for x in text.split()]
             except ValueError as e:
@@ -1382,7 +1358,6 @@ class Connection():
                 1114: (FC_BINARY, timestamp_recv_float),  # timestamp w/ tz
                 1184: (FC_BINARY, timestamptz_recv_float),
                 1186: (FC_BINARY, interval_recv_integer),
-                1231: (FC_TEXT, array_in),  # NUMERIC[]
                 1263: (FC_BINARY, array_recv),  # cstring[]
                 1700: (FC_TEXT, numeric_in),  # NUMERIC
                 2275: (FC_BINARY, text_recv),  # cstring
@@ -2752,7 +2727,6 @@ pg_array_types = {
     25: 1009,  # TEXT[]
     701: 1022,
     1043: 1009,
-    1700: 1231,  # NUMERIC[]
 }
 
 # PostgreSQL encodings:
