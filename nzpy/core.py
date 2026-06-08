@@ -1081,7 +1081,7 @@ NzTypeLastEntry = 34
 #  KEEP THIS ENTRY LAST - used internally to size an array
 
 #  this is version of nzpy driver
-nzpy_client_version = "Release 11.3.0.0"
+nzpy_client_version = "Release 11.3.1.3"
 
 dataType = {
     NzTypeChar: "NzTypeChar",
@@ -1917,11 +1917,9 @@ class Connection():
                 try:
                     is_fifo = stat.S_ISFIFO(os.stat(fname).st_mode) if os.path.exists(fname) else False
                     if is_fifo:
-                        # For FIFOs, use 'w' mode which works better with named pipes
-                        fh = open(fname, "w")
+                        fh = open(fname, "wb")
                     else:
-                        # For regular files we use w+
-                        fh = open(fname, "w+")
+                        fh = open(fname, "wb+")
                     self.log.debug("Successfully opened file: %s", fname)
                     # file open successfully, send status back to datawriter
                     buf = bytearray(i_pack(0))
@@ -2068,17 +2066,12 @@ class Connection():
 
             if fldtype == NzTypeUnknown:
                 fldtype = NzTypeVarChar
-                memsize = memsize + 1
-            if fldtype == NzTypeChar or fldtype == NzTypeVarChar or \
-                    fldtype == NzTypeVarFixedChar or \
-                    fldtype == NzTypeGeometry or fldtype == \
-                    NzTypeVarBinary:
-                memsize = memsize + 1
-            if fldtype == NzTypeNChar or fldtype == NzTypeNVarChar or \
-                    fldtype == NzTypeJson or fldtype == NzTypeJsonb or \
-                    fldtype == NzTypeJsonpath or fldtype == NzTypeVector:
+                memsize += 1
+            if fldtype in [NzTypeChar, NzTypeVarChar, NzTypeVarFixedChar, NzTypeGeometry, NzTypeVarBinary]:
+                memsize += 1
+            if fldtype in [NzTypeNChar, NzTypeNVarChar, NzTypeJson, NzTypeJsonb, NzTypeJsonpath, NzTypeVector]:
                 memsize *= 4
-                memsize = memsize + 1
+                memsize += 1
             if fldtype == NzTypeDate:
                 memsize = 12
             if fldtype == NzTypeTime:
@@ -2098,17 +2091,15 @@ class Connection():
                 self.log.debug("field=%d, datatype=CHAR, "
                                "value=%s", cur_field + 1, value)
 
-            if fldtype == NzTypeNChar or fldtype == NzTypeNVarChar:
+            if fldtype in [NzTypeNChar, NzTypeNVarChar]:
                 cursize = int.from_bytes(fieldDataP[0:2], 'little') - 2
                 value = str(fieldDataP[2:cursize + 2], self._client_encoding)
                 row.append(value)
                 self.log.debug("field=%d, datatype=%s, value=%s",
                                cur_field + 1, dataType[fldtype], value)
 
-            if fldtype == NzTypeVarChar or fldtype == NzTypeVarFixedChar or \
-                    fldtype == NzTypeGeometry or fldtype == NzTypeVarBinary \
-                    or fldtype == NzTypeJson or fldtype == NzTypeJsonb or \
-                    fldtype == NzTypeJsonpath or fldtype == NzTypeVector:
+            if fldtype in [NzTypeVarChar, NzTypeVarFixedChar, NzTypeGeometry, NzTypeVarBinary,
+                           NzTypeJson, NzTypeJsonb, NzTypeJsonpath, NzTypeVector]:
                 cursize = int.from_bytes(fieldDataP[0:2], 'little') - 2
                 value = str(fieldDataP[2:cursize + 2],
                             self._char_varchar_encoding)
@@ -2206,13 +2197,8 @@ class Connection():
                                "value=%s", cur_field + 1, value)
 
             if fldtype == NzTypeTimestamp:
-                if fldlen == 8:
-                    workspace = int.from_bytes(fieldDataP[:fldlen],
-                                               byteorder='little', signed=True)
-                elif fldlen == 4:
-                    workspace = int.from_bytes(fieldDataP[:fldlen],
-                                               byteorder='little', signed=True)
-
+                if fldlen in [4, 8]:
+                    workspace = int.from_bytes(fieldDataP[:fldlen], byteorder='little', signed=True)
                 if fldlen == 8:
                     timestamp_value = timestamp2struct(workspace)
                 elif fldlen == 4:
@@ -2326,57 +2312,54 @@ class Connection():
 
         self._read(4)
 
-        while (1):
+        try:
+            while True:
 
-            #  Get EXTAB_SOCK Status
-            try:
-                status = i_unpack(self._read(4))[0]
-            except Exception:
-                self.log.warning("Error while retrieving status, "
-                                 "closing unload file")
-            finally:
-                fh.close()
-
-            if status == EXTAB_SOCK_DATA:
-                # get number of bytes in block
-                numBytes = i_unpack(self._read(4))[0]
+                #  Get EXTAB_SOCK Status
                 try:
-                    blockBuffer = str(self._read(numBytes),
-                                      self._client_encoding)
-                    is_fifo = stat.S_ISFIFO(os.stat(fname).st_mode) if os.path.exists(fname) else False
-                    if is_fifo:
-                        fh = open(fname, "w")
-                    else:
-                        fh = open(fname, "a+")
-                    fh.write(blockBuffer)
-                    self.log.info("Successfully written data into file")
-                except Exception:
-                    self.log.warning("Error in writing data to file")
-                continue
+                    status = i_unpack(self._read(4))[0]
+                except Exception as e:
+                    self.log.warning("Error while retrieving status: %s", str(e))
+                    break
 
-            if status == EXTAB_SOCK_DONE:
+                if status == EXTAB_SOCK_DATA:
+                    # get number of bytes in block
+                    numBytes = i_unpack(self._read(4))[0]
+                    try:
+                        blockBuffer = self._read(numBytes)
+                        fh.write(blockBuffer)
+                        self.log.info("Successfully written %d bytes to file", numBytes)
+                    except Exception as e:
+                        self.log.error("Error writing data to file '%s': %s", fname, str(e))
+                        raise
+                    continue
+
+                elif status == EXTAB_SOCK_DONE:
+                    self.log.info("unload - done receiving data")
+                    break
+
+                elif status == EXTAB_SOCK_ERROR:
+
+                    len_msg = h_unpack(self._read(2))[0]
+                    errorMsg = str(self._read(len_msg), self._client_encoding)
+
+                    len_obj = h_unpack(self._read(2))[0]
+                    errorObject = str(self._read(len_obj), self._client_encoding)
+
+                    self.log.warning("unload - ErrorMsg: %s", errorMsg)
+                    self.log.warning("unload - ErrorObj: %s", errorObject)
+                    break
+
+                else:
+                    self.log.warning("unload - unexpected status: %d", status)
+                    break
+
+        finally:
+            try:
                 fh.close()
-                self.log.info("unload - done receiving data")
-                break
-
-            if status == EXTAB_SOCK_ERROR:
-
-                len = h_unpack(self._read(2))[0]
-                errorMsg = str(self._read(len), self._client_encoding)
-
-                len = h_unpack(self._read(2))[0]
-                errorObject = str(self._read(len), self._client_encoding)
-
-                self.log.warning("unload - ErrorMsg: %s", errorMsg)
-                self.log.warning("unload - ErrorObj: %s", errorObject)
-
-                fh.close()
-                self.log.debug("unload - done receiving data")
-                return
-
-            else:
-                fh.close()
-                return
+                self.log.debug("Closed export file: %s", fname)
+            except Exception:
+                pass
 
         return
 
@@ -2408,39 +2391,48 @@ class Connection():
                       blockSize, hostversion)
 
         try:
-            filehandle = open(filename, 'r', encoding='utf-8')
+            filehandle = open(filename, 'rb')
             self.log.info("Successfully opened External"
                           " file to read:%s", filename)
             while True:
                 data = filehandle.read(blockSize)
                 if not data:
                     break
-                if blockSize < len(data.encode('utf8')):
-                    diff = len(data.encode('utf8')) - blockSize
+                data_len = len(data)
+                if blockSize < data_len:
+                    diff = data_len - blockSize
                     val = bytearray(i_pack(EXTAB_SOCK_DATA) +
                                     i_pack(blockSize))
-                    val.extend(data.encode('utf8'))
-                    self._write(val[:blockSize + 8])
+                    val.extend(data[:blockSize])
+                    self._write(val)
                     self._flush()
                     val = bytearray(i_pack(EXTAB_SOCK_DATA) +
-                                    i_pack(diff) +
-                                    val[blockSize + 8:])
+                                    i_pack(diff))
+                    val.extend(data[blockSize:])
                     self._write(val)
                     self._flush()
                 else:
                     val = bytearray(i_pack(EXTAB_SOCK_DATA) +
-                                    i_pack(len(data.encode('utf8'))))
-                    val.extend(data.encode('utf8'))
+                                    i_pack(data_len))
+                    val.extend(data)
                     self._write(val)
                     self._flush()
-                self.log.debug("No. of bytes sent to BE:%s", len(data))
+                self.log.debug("No. of bytes sent to BE:%s", data_len)
+            filehandle.close()
             val = bytearray(i_pack(EXTAB_SOCK_DONE))
             self._write(val)
             self._flush()
             self.log.info("sent EXTAB_SOCK_DONE to reader")
 
-        except Exception:
-            self.log.warning("Error opening file")
+        except Exception as e:
+            self.log.error("Error opening file '%s': %s", filename, str(e))
+            try:
+                val = bytearray(i_pack(EXTAB_SOCK_ERROR))
+                self._write(val)
+                self._flush()
+            except Exception:
+                pass
+            raise
 
     ##################################################################
     #  Function: getFileFromBE - This Routine opens a file in
@@ -2468,33 +2460,39 @@ class Connection():
 
         if logType == 1:
             fullpath = fullpath + ".nzlog"
-            fh = open(fullpath, "w+")
+            fh = open(fullpath, "wb+")
         elif logType == 2:
             fullpath = fullpath + ".nzbad"
-            fh = open(fullpath, "w+")
+            fh = open(fullpath, "wb+")
         elif logType == 3:
             fullpath = fullpath + ".nzstats"
-            fh = open(fullpath, "w+")
+            fh = open(fullpath, "wb+")
+        else:
+            fh = open(fullpath, "wb+")
 
-        while (1):
+        try:
+            while (1):
 
-            numBytes = i_unpack(self._read(4))[0]
+                numBytes = i_unpack(self._read(4))[0]
 
-            if numBytes == 0:  # zeros means EOF, no more data
-                break
+                if numBytes == 0:
+                    break
 
-            dataBuffer = str(self._read(numBytes), self._client_encoding)
+                dataBuffer = self._read(numBytes)
 
-            if status:
-                try:
-                    fh.write(dataBuffer)
-                    self.log.info("Successfully written data "
-                                  "into file: %s", fullpath)
-                except Exception:
-                    self.log.warning("Error in writing data to file")
-                    status = False
+                if status:
+                    try:
+                        fh.write(dataBuffer)
+                        self.log.info("Successfully written data "
+                                      "into file: %s", fullpath)
+                    except Exception as e:
+                        self.log.error("Error in writing data to file '%s': %s",
+                                      fullpath, str(e))
+                        status = False
 
-        fh.close()
+        finally:
+            fh.close()
+
         return status
 
     def _send_message(self, code, data):
